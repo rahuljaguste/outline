@@ -195,6 +195,36 @@ function AuthenticationProvider(props: Props) {
     );
   }
 
+  if (id === "password") {
+    if (isCreate) {
+      return null;
+    }
+    return (
+      <Wrapper>
+        <PasswordForm method="POST" action="/auth/password">
+          <InputLarge
+            type="email"
+            name="email"
+            placeholder={t("Email")}
+            required
+            short
+          />
+          <InputLarge
+            type="password"
+            name="password"
+            placeholder={t("Password")}
+            required
+            short
+          />
+          <input type="hidden" name="client" value={clientType} />
+          <ButtonLarge type="submit" fullwidth {...rest}>
+            {t("Sign In")}
+          </ButtonLarge>
+        </PasswordForm>
+      </Wrapper>
+    );
+  }
+
   return (
     <ButtonLarge
       onClick={() => (window.location.href = href)}
@@ -217,6 +247,13 @@ const Form = styled.form`
   width: 100%;
   display: flex;
   justify-content: space-between;
+`;
+
+const PasswordForm = styled.form`
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 `;
 
 export default AuthenticationProvider;

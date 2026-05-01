@@ -187,6 +187,22 @@ class User extends ParanoidModel<
   @SkipChangeset
   lastSigninEmailSentAt: Date | null;
 
+  /**
+   * Argon2id hash of the user's password (or null if password auth is not
+   * configured for this user). Excluded from the default scope so it never
+   * leaks through ordinary queries / presenters.
+   */
+  @AllowNull
+  @Column(DataType.TEXT)
+  @SkipChangeset
+  passwordHash: string | null;
+
+  @IsDate
+  @AllowNull
+  @Column
+  @SkipChangeset
+  passwordUpdatedAt: Date | null;
+
   @IsDate
   @Column
   suspendedAt: Date | null;
@@ -671,6 +687,69 @@ class User extends ParanoidModel<
       },
       this.jwtSecret
     );
+
+  /**
+   * Hash and persist a new password for this user using argon2id. Setting
+   * password to an empty string or null disables password login for the user.
+   *
+   * @param password The plaintext password.
+   * @param options Optional save options (e.g. transaction).
+   * @returns A promise that resolves when the password has been persisted.
+   * @throws ValidationError if password fails minimum-length policy.
+   */
+  setPassword = async (
+    password: string | null,
+    options?: SaveOptions
+  ): Promise<void> => {
+    if (!password) {
+      this.passwordHash = null;
+      this.passwordUpdatedAt = new Date();
+      await this.save(options);
+      return;
+    }
+
+    if (password.length < 12) {
+      throw ValidationError("Password must be at least 12 characters");
+    }
+    if (password.length > 256) {
+      throw ValidationError("Password must be at most 256 characters");
+    }
+
+    const { hash } = await import("@node-rs/argon2");
+    this.passwordHash = await hash(password, {
+      memoryCost: 65536,
+      timeCost: 3,
+      parallelism: 1,
+    });
+    this.passwordUpdatedAt = new Date();
+    await this.save(options);
+  };
+
+  /**
+   * Verify a plaintext password against this user's stored argon2id hash.
+   * Always runs the argon2 verifier (even on missing hash) so callers cannot
+   * distinguish "no password set" from "wrong password" via timing.
+   *
+   * @param password The plaintext password to check.
+   * @returns true when password matches, false otherwise.
+   */
+  verifyPassword = async (password: string): Promise<boolean> => {
+    const { verify } = await import("@node-rs/argon2");
+    // A pre-computed argon2id hash of an unguessable random string. Used as a
+    // dummy when no password is configured so verify time stays roughly
+    // constant whether the account exists / has a password or not.
+    const dummy =
+      "$argon2id$v=19$m=65536,t=3,p=1$ZG93cmVybGNncW1qaXNubw$" +
+      "qmJpUcuVD4dbGYRwhd4XDz3qwTYvjN1xkpUmcyx07hk";
+    const hash = this.passwordHash || dummy;
+
+    try {
+      const ok = await verify(hash, password);
+      return this.passwordHash ? ok : false;
+    } catch {
+      return false;
+    }
+  };
 
   /**
    * Generate a 6-digit verification code for email authentication
