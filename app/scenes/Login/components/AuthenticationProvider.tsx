@@ -207,14 +207,12 @@ function AuthenticationProvider(props: Props) {
             name="email"
             placeholder={t("Email")}
             required
-            short
           />
           <InputLarge
             type="password"
             name="password"
             placeholder={t("Password")}
             required
-            short
           />
           <input type="hidden" name="client" value={clientType} />
           <ButtonLarge type="submit" fullwidth {...rest}>
@@ -254,6 +252,13 @@ const PasswordForm = styled.form`
   display: flex;
   flex-direction: column;
   gap: 8px;
+
+  /* Override InputLarge defaults that target a horizontal email-only form. */
+  > div {
+    width: 100%;
+    max-width: 100%;
+    margin-right: 0;
+  }
 `;
 
 export default AuthenticationProvider;
